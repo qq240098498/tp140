@@ -98,6 +98,23 @@ function validatePayload(input, data, selfId) {
     throw new ApiError(409, 'ROUND_CONFLICT', `第 ${round} 轮里这两支球队已经各有一场了，同一轮不能重复出场`, 'round');
   }
 
+  // 同一天里一支球队只能打一场，哪怕分在不同轮次也不行；取消掉的场次不占这天
+  const teamName = (id) => {
+    const team = data.teams.find((item) => item.id === id);
+    return team ? team.name : '这支球队';
+  };
+  const sameDayTeam = data.matches.find((item) => item.id !== selfId && item.date === date
+    && item.status !== '取消'
+    && (item.homeTeamId === homeTeamId || item.awayTeamId === homeTeamId
+      || item.homeTeamId === awayTeamId || item.awayTeamId === awayTeamId));
+  if (sameDayTeam) {
+    const busyId = sameDayTeam.homeTeamId === homeTeamId || sameDayTeam.awayTeamId === homeTeamId ? homeTeamId : awayTeamId;
+    const opponentId = sameDayTeam.homeTeamId === busyId ? sameDayTeam.awayTeamId : sameDayTeam.homeTeamId;
+    throw new ApiError(409, 'TEAM_DAY_CONFLICT',
+      `${teamName(busyId)}在 ${date} 这天第 ${sameDayTeam.round} 轮已经排了一场对 ${teamName(opponentId)} 的比赛（${sameDayTeam.kickoff} 开赛），同一天一支球队只能打一场`,
+      'date');
+  }
+
   // 同一天同一块场地不能挨得太近
   const resolved = resolveVenueId(candidate, data);
   if (resolved) {
